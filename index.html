@@ -1,41 +1,103 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Browser License Plate Detection</title>
-  <style>
-    body {
-      margin: 0;
-      background: #000;
-      overflow: hidden;
-    }
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-    #start {
-      position: absolute;
-      z-index: 10;
-      top: 20px;
-      left: 20px;
-      padding: 12px 20px;
-      font-size: 16px;
-    }
-  </style>
-</head>
-<body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YOLOv8 License Plate Detection + fast-plate-ocr</title>
 
-<button id="start">Start Camera</button>
-<video id="video" autoplay playsinline muted></video>
-<canvas id="canvas"></canvas>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
-<!-- ONNX Runtime -->
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <!-- Google Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
 
-<!-- Tesseract OCR -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- External Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 
-<script src="main.js"></script>
-</body>
+    <!-- External JS Files -->
+    <script src="src/yolo.js" type="module"></script>
+    <script src="src/ocr.js" type="module"></script>
+    <script src="src/main.js" type="module"></script>
+  </head>
+  <body
+    class="bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 font-sans text-gray-800"
+  >
+    <!-- Main Container -->
+    <div class="container mx-auto p-6 sm:p-8 md:p-10 space-y-8">
+      <!-- Header Section -->
+      <div class="text-center">
+        <h1
+          class="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500"
+        >
+          YOLOv8 License Plate Detection
+        </h1>
+        <p class="mt-2 text-lg sm:text-xl text-gray-700">
+          Using YOLOv8 and fast-plate-ocr
+        </p>
+      </div>
+
+      <!-- Upload Section -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
+        <!-- CSV Upload -->
+        <div
+          class="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
+        >
+          <h2 class="text-2xl font-semibold text-green-500">Upload CSV</h2>
+          <input
+            type="file"
+            id="csvUpload"
+            accept=".csv"
+            class="mt-6 w-full max-w-xs px-6 py-3 border-2 border-green-500 rounded-md cursor-pointer hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-300"
+          />
+          <p class="mt-2 text-sm text-gray-500">
+            Upload a CSV file (First column will be extracted)
+          </p>
+        </div>
+
+        <!-- Image Upload -->
+        <div
+          class="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
+        >
+          <h2 class="text-2xl font-semibold text-blue-500">Upload Image</h2>
+          <input
+            type="file"
+            id="imgUpload"
+            accept="image/*"
+            class="mt-6 w-full max-w-xs px-6 py-3 border-2 border-blue-500 rounded-md cursor-pointer hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300"
+          />
+          <p class="mt-2 text-sm text-gray-500">
+            Choose an image for license plate detection
+          </p>
+        </div>
+      </div>
+
+      <!-- Canvas Section -->
+      <div class="flex justify-center mt-8">
+        <canvas
+          id="canvas"
+          class="w-full sm:w-[500px] max-w-full border-4 border-gray-200 rounded-xl shadow-lg transition-all duration-300 hover:shadow-2xl"
+          width="640"
+          height="480"
+        ></canvas>
+      </div>
+
+      <!-- License Plates List Section -->
+      <div class="mt-8">
+        <h2 class="text-2xl font-semibold text-gray-800">
+          Detected License Plates
+        </h2>
+        <ul id="plateList" class="mt-4 space-y-3">
+          <!-- License Plate items will be added here dynamically -->
+        </ul>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center mt-12 text-sm text-gray-600">
+      <p>Built with education in mind | License Plate Detection</p>
+    </footer>
+  </body>
 </html>

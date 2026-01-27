@@ -18,7 +18,7 @@ let ocrWorker = null;
 async function initOCR() {
   ocrWorker = await Tesseract.createWorker();
   await ocrWorker.setParameters({
-    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
   });
 }
 
@@ -86,7 +86,6 @@ startBtn.onclick = async () => {
 
     await initOCR();
     loop();
-
   } catch (e) {
     console.error(e);
     showMessage("Camera or ONNX error");
@@ -101,7 +100,6 @@ async function loop() {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
   if (session && frameCount % INFERENCE_EVERY === 0) {
-
     // ===============================
     // ✅ FIXED preprocessing
     // ===============================
@@ -120,12 +118,19 @@ async function loop() {
       data[b++] = img[i + 2] / 255;
     }
 
-    const input = new ort.Tensor("float32", data, [1, 3, INPUT_SIZE, INPUT_SIZE]);
+    const input = new ort.Tensor("float32", data, [
+      1,
+      3,
+      INPUT_SIZE,
+      INPUT_SIZE,
+    ]);
 
     try {
       const outputs = await session.run({ images: input });
 
-      const detections = postprocess(outputs, scale, dx, dy).filter(b => b.score > 0.7 && b.w > 10 && b.h > 10);
+      const detections = postprocess(outputs, scale, dx, dy).filter(
+        (b) => b.score > 0.7 && b.w > 10 && b.h > 10,
+      );
       console.log(detections);
       for (const d of detections) {
         drawBox(d);
@@ -137,7 +142,6 @@ async function loop() {
           }
         }
       }
-
     } catch (e) {
       console.error(e);
       showMessage("Inference error");
@@ -160,8 +164,8 @@ function postprocess(output, scale, dx, dy) {
   for (let i = 0; i < num; i++) {
     const cx = data[i];
     const cy = data[i + num];
-    const w  = data[i + num * 2];
-    const h  = data[i + num * 3];
+    const w = data[i + num * 2];
+    const h = data[i + num * 3];
     const obj = data[i + num * 4];
     const cls = data[i + num * 5]; // single-class model
 
@@ -222,14 +226,12 @@ function drawBox(b) {
 
 // --- OCR ---
 async function ocrPlate(b, key) {
-  plateCtx.drawImage(
-    video,
-    b.x, b.y, b.w, b.h,
-    0, 0, OCR_SIZE.w, OCR_SIZE.h
-  );
+  plateCtx.drawImage(video, b.x, b.y, b.w, b.h, 0, 0, OCR_SIZE.w, OCR_SIZE.h);
 
   try {
-    const { data: { text } } = await ocrWorker.recognize(plateCanvas);
+    const {
+      data: { text },
+    } = await ocrWorker.recognize(plateCanvas);
     const trimmed = text.trim();
     if (trimmed) {
       seenPlates.set(key, trimmed);
