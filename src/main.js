@@ -1,8 +1,9 @@
 // Main.js
-import { imageToTensor, mapBoxes } from "./yolo.js"; // Import OCR functions
-import { preprocessPlate, recognizePlate } from "./ocr.js"; // Import OCR functions
+import { imageToTensor, mapBoxes } from "./yolo.js";
+import { preprocessPlate, recognizePlate } from "./ocr.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const video = document.getElementById("video");
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
 
@@ -10,48 +11,78 @@ document.addEventListener("DOMContentLoaded", async () => {
   let ocrSession = null;
 
   const MODEL_SIZE = 640;
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  const oscillator = audioContext.createOscillator();
-  oscillator.type = "sine"; // Choose the type of wave (sine, square, etc.)
-  oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // Frequency in Hz (440 Hz is the A note)
-  oscillator.connect(audioContext.destination);
   let plates = new Set();
 
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
   /* =========================
-    INIT
-    ========================= */
+     INIT
+  ========================= */
   async function init() {
     yoloSession = await ort.InferenceSession.create("src/model/yolo.onnx", {
       executionProviders: ["wasm"],
     });
     console.log("YOLO loaded");
 
-    ocrSession = await ort.InferenceSession.create("src/model//cct.onnx", {
+    ocrSession = await ort.InferenceSession.create("src/model/cct.onnx", {
       executionProviders: ["wasm"],
     });
     console.log("fast-plate-ocr loaded");
+
+    startWebcam();
   }
 
   /* =========================
-    MAIN DETECTION LOOP
-    ========================= */
-  async function detectImage(img) {
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
+     START WEBCAM
+  ========================= */
+  async function startWebcam() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        video.play();
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        detectLoop();
+      };
+    } catch (err) {
+      console.error("Error accessing webcam:", err);
+    }
+  }
 
-    const { tensor, scale, dx, dy } = imageToTensor(img, MODEL_SIZE);
+  /* =========================
+     DETECTION LOOP
+  ========================= */
+  async function detectLoop() {
+    // Draw video frame onto canvas
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Use an offscreen canvas for processing
+    const offCanvas = document.createElement("canvas");
+    offCanvas.width = video.videoWidth;
+    offCanvas.height = video.videoHeight;
+    const offCtx = offCanvas.getContext("2d");
+    offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+
+    // Convert the frame to tensor
+    const { tensor, scale, dx, dy } = imageToTensor(offCanvas, MODEL_SIZE);
     const output = await yoloSession.run({ images: tensor });
     const boxes = mapBoxes(
       output.output0.data,
       scale,
       dx,
       dy,
-      img.width,
-      img.height,
+      canvas.width,
+      canvas.height,
     );
 
-    // Clear existing plate text list
+    // Clear canvas overlay and redraw video
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
     const plateList = document.getElementById("plateList");
     plateList.innerHTML = "";
 
@@ -60,10 +91,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       ctx.lineWidth = 2;
       ctx.strokeRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1);
 
-      const plateCanvas = preprocessPlate(img, b.x1, b.y1, b.x2, b.y2);
+      const plateCanvas = preprocessPlate(offCanvas, b.x1, b.y1, b.x2, b.y2);
       const plateText = await recognizePlate(plateCanvas, ocrSession);
+
       if (plates.has(plateText)) {
-        // Add detected plate text to the list
         const listItem = document.createElement("li");
         listItem.textContent = plateText;
         listItem.classList.add(
@@ -76,25 +107,27 @@ document.addEventListener("DOMContentLoaded", async () => {
           "shadow-md",
           "hover:bg-red-50",
         );
-
         plateList.appendChild(listItem);
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 1); // Play for 1 second
+
+        playBeep();
       }
     }
+
+    requestAnimationFrame(detectLoop);
   }
 
-  // File upload listener for image
-  document.getElementById("imgUpload").addEventListener("change", async (e) => {
-    if (!yoloSession || !ocrSession) await init();
-    const file = e.target.files[0];
-    if (!file) return;
-    const img = new Image();
-    img.onload = () => detectImage(img);
-    img.src = URL.createObjectURL(file);
-  });
+  function playBeep() {
+    const osc = audioContext.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(440, audioContext.currentTime);
+    osc.connect(audioContext.destination);
+    osc.start();
+    osc.stop(audioContext.currentTime + 0.5);
+  }
 
-  // File upload listener for CSV
+  /* =========================
+     CSV UPLOAD
+  ========================= */
   document.getElementById("csvUpload").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -103,8 +136,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const csvData = event.target.result;
         const rows = csvData.split("\n");
 
-        // Extract the header row to find the column index
-        const header = rows[0].split(",").map((col) => col.trim()); // Assuming first row is the header
+        const header = rows[0].split(",").map((col) => col.trim());
         const targetColumnName = "vehicle_license";
         const targetColumnIndex = header.indexOf(targetColumnName);
 
@@ -113,17 +145,19 @@ document.addEventListener("DOMContentLoaded", async () => {
           return;
         }
 
-        // Extract data from the target column (ignoring the header row)
         plates = new Set(
           rows.slice(1).map((row) => {
             const columns = row.split(",").map((col) => col.trim());
-            return columns[targetColumnIndex]; // Extract the value from the target column
+            return columns[targetColumnIndex];
           }),
         );
 
-        console.log(plates); // View the contents of the array
+        console.log(plates);
       };
       reader.readAsText(file);
     }
   });
+
+  // Initialize sessions
+  await init();
 });

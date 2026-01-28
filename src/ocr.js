@@ -42,6 +42,7 @@ function normalizePlateText(raw) {
 }
 
 function formatLicense(text) {
+  console.log(text);
   const t = normalizePlateText(text);
   if (t.length >= 7) return t.slice(0, 7);
   if (t.length >= 6) return t.slice(0, 6);

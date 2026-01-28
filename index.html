@@ -39,46 +39,34 @@
         </p>
       </div>
 
-      <!-- Upload Section -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
-        <!-- CSV Upload -->
-        <div
-          class="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
-        >
-          <h2 class="text-2xl font-semibold text-green-500">Upload CSV</h2>
-          <input
-            type="file"
-            id="csvUpload"
-            accept=".csv"
-            class="mt-6 w-full max-w-xs px-6 py-3 border-2 border-green-500 rounded-md cursor-pointer hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-300"
-          />
-          <p class="mt-2 text-sm text-gray-500">
-            Upload a CSV file (First column will be extracted)
-          </p>
-        </div>
-
-        <!-- Image Upload -->
-        <div
-          class="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
-        >
-          <h2 class="text-2xl font-semibold text-blue-500">Upload Image</h2>
-          <input
-            type="file"
-            id="imgUpload"
-            accept="image/*"
-            class="mt-6 w-full max-w-xs px-6 py-3 border-2 border-blue-500 rounded-md cursor-pointer hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300"
-          />
-          <p class="mt-2 text-sm text-gray-500">
-            Choose an image for license plate detection
-          </p>
-        </div>
+      <!-- CSV Upload -->
+      <div
+        class="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 max-w-md mx-auto"
+      >
+        <h2 class="text-2xl font-semibold text-green-500">Upload CSV</h2>
+        <input
+          type="file"
+          id="csvUpload"
+          accept=".csv"
+          class="mt-6 w-full px-6 py-3 border-2 border-green-500 rounded-md cursor-pointer hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-300"
+        />
+        <p class="mt-2 text-sm text-gray-500">
+          Upload a CSV file (First column will be extracted)
+        </p>
       </div>
 
-      <!-- Canvas Section -->
-      <div class="flex justify-center mt-8">
+      <!-- Webcam & Canvas Section -->
+      <div class="flex flex-col items-center mt-8">
+        <video
+          id="video"
+          class="w-full sm:w-[500px] max-w-full rounded-xl shadow-lg transition-all duration-300 hover:shadow-2xl"
+          autoplay
+          muted
+          playsinline
+        ></video>
         <canvas
           id="canvas"
-          class="w-full sm:w-[500px] max-w-full border-4 border-gray-200 rounded-xl shadow-lg transition-all duration-300 hover:shadow-2xl"
+          class="absolute w-full sm:w-[500px] max-w-full border-4 border-gray-200 rounded-xl pointer-events-none"
           width="640"
           height="480"
         ></canvas>
