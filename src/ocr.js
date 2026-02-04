@@ -125,6 +125,7 @@ async function recognizePlate(plateCanvas, ocrSession) {
   for (const v of variants) {
     const input = tensorFromPlate(v);
     const out = await ocrSession.run({ input: input });
+    input.dispose();
     const logits = out[Object.keys(out)[0]].data;
     results.push(normalizePlateText(decodePlateSlots(logits)));
   }
