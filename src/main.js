@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let yoloSession = null;
   let ocrSession = null;
 
-  const MODEL_SIZE = 640;
+  const MODEL_SIZE = 320;
   let plates = new Set();
 
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", async () => {
      INIT
   ========================= */
   async function init() {
-    yoloSession = await ort.InferenceSession.create("src/model/yolo.onnx", {
+    yoloSession = await ort.InferenceSession.create("src/model/yolo320.onnx", {
       executionProviders: ["wasm"],
     });
     console.log("YOLO loaded");
@@ -69,20 +69,37 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Convert the frame to tensor
     const { tensor, scale, dx, dy } = imageToTensor(offCanvas, MODEL_SIZE);
-    const output = await yoloSession.run({ images: tensor });
-    const boxes = mapBoxes(
-      output.output0.data,
-      scale,
-      dx,
-      dy,
-      canvas.width,
-      canvas.height,
-    );
+
+    let output;
+    let boxes;
+    try {
+      // Run the model
+      output = await yoloSession.run({ images: tensor });
+
+      // Process the output (boxes)
+      boxes = mapBoxes(
+        output.output0.data,
+        scale,
+        dx,
+        dy,
+        canvas.width,
+        canvas.height,
+      );
+    } finally {
+      // Always cleanup
+      tensor.dispose();
+      if (output) {
+        for (const key in output) {
+          output[key]?.dispose?.();
+        }
+      }
+    }
 
     // Clear canvas overlay and redraw video
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+    // Prepare the list of plates (if any)
     const plateList = document.getElementById("plateList");
     plateList.innerHTML = "";
 
@@ -113,6 +130,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
 
+    // Request the next frame
     requestAnimationFrame(detectLoop);
   }
 

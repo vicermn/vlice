@@ -24,4 +24,11 @@ This project uses **YOLOv8** for license plate detection and **fast-plate-ocr** 
 - Make sure the plate is clearly visible for best results.
 - The model files (`hotness.onnx` and `cct.onnx`) must be in the `model/` and `ocr/` folders respectively.
 
-Rip it 
+## TODO
+
+- ✅ Reduce YOLO input to 416×416 (or even 320×320 if plates are big enough).
+- [ ] Process fewer frames (10–15 fps).
+- [ ] Dispose tensors immediately after use.
+- [ ] Reuse canvases instead of creating new ones every frame.
+- [ ] Use WASM backend, not WebGL/WebGPU.
+- [ ] Optional: crop the image to ROI to save even more memory.
