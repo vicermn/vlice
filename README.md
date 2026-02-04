@@ -28,7 +28,6 @@ This project uses **YOLOv8** for license plate detection and **fast-plate-ocr** 
 
 - ✅ Reduce YOLO input to 416×416 (or even 320×320 if plates are big enough).
 - [ ] Process fewer frames (10–15 fps).
-- [ ] Dispose tensors immediately after use.
+- ✅ Dispose tensors immediately after use.
 - [ ] Reuse canvases instead of creating new ones every frame.
-- [ ] Use WASM backend, not WebGL/WebGPU.
 - [ ] Optional: crop the image to ROI to save even more memory.
