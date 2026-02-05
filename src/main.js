@@ -15,6 +15,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
+  let lastFrameTime = 0;
+  const frameInterval = 1000 / 10; // 10 FPS = 1000ms / 10
+
   /* =========================
      INIT
   ========================= */
@@ -57,6 +60,18 @@ document.addEventListener("DOMContentLoaded", async () => {
      DETECTION LOOP
   ========================= */
   async function detectLoop() {
+    const now = performance.now();
+    const elapsedTime = now - lastFrameTime;
+
+    if (elapsedTime < frameInterval) {
+      // If the elapsed time is less than the interval (10 FPS), skip this frame
+      requestAnimationFrame(detectLoop);
+      return;
+    }
+
+    // Update last frame time
+    lastFrameTime = now;
+
     // Draw video frame onto canvas
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
@@ -130,7 +145,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
 
-    // Request the next frame
+    // Request the next frame after processing
     requestAnimationFrame(detectLoop);
   }
 
