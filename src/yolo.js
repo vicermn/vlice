@@ -1,7 +1,7 @@
 const CONF_THRESHOLD = 0.3;
 
 function imageToTensor(img, size = MODEL_SIZE) {
-  const off = document.createElement("canvas");
+  let off = document.createElement("canvas");
   off.width = off.height = size;
   const ctxOff = off.getContext("2d");
   ctxOff.fillStyle = "black";
@@ -24,6 +24,9 @@ function imageToTensor(img, size = MODEL_SIZE) {
     data[g++] = imgData[i + 1] / 255;
     data[b++] = imgData[i + 2] / 255;
   }
+  off.width = 0;
+  off.height = 0;
+  off = null; // Explicitly release the canvas reference
   return {
     tensor: new ort.Tensor("float32", data, [1, 3, size, size]),
     scale,

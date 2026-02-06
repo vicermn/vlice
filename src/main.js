@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     // Use an offscreen canvas for processing
-    const offCanvas = document.createElement("canvas");
+    let offCanvas = document.createElement("canvas");
     offCanvas.width = video.videoWidth;
     offCanvas.height = video.videoHeight;
     const offCtx = offCanvas.getContext("2d");
@@ -84,7 +84,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Convert the frame to tensor
     const { tensor, scale, dx, dy } = imageToTensor(offCanvas, MODEL_SIZE);
-
     let output;
     let boxes;
     try {
@@ -123,9 +122,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       ctx.lineWidth = 2;
       ctx.strokeRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1);
 
-      const plateCanvas = preprocessPlate(offCanvas, b.x1, b.y1, b.x2, b.y2);
+      let plateCanvas = preprocessPlate(offCanvas, b.x1, b.y1, b.x2, b.y2);
+
       const plateText = await recognizePlate(plateCanvas, ocrSession);
 
+      plateCanvas.width = 0;
+      plateCanvas.height = 0;
+      plateCanvas = null; // Explicitly release the canvas reference
       if (plates.has(plateText)) {
         const listItem = document.createElement("li");
         listItem.textContent = plateText;
@@ -144,7 +147,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         playBeep();
       }
     }
-
+    offCanvas.width = 0;
+    offCanvas.height = 0;
+    offCanvas = null; // Explicitly release the canvas reference
     // Request the next frame after processing
     requestAnimationFrame(detectLoop);
   }

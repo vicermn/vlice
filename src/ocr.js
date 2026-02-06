@@ -127,6 +127,11 @@ async function recognizePlate(plateCanvas, ocrSession) {
     const out = await ocrSession.run({ input: input });
     input.dispose();
     const logits = out[Object.keys(out)[0]].data;
+    if (out) {
+      for (const key in out) {
+        out[key]?.dispose?.();
+      }
+    }
     results.push(normalizePlateText(decodePlateSlots(logits)));
   }
 
