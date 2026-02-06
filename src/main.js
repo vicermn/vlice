@@ -41,7 +41,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function startWebcam() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: "environment",
+          width: { ideal: 640 }, // Lower resolution for performance
+          height: { ideal: 480 },
+        },
         audio: false,
       });
       video.srcObject = stream;
