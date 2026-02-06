@@ -43,8 +43,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "environment",
-          width: { ideal: 640 }, // Lower resolution for performance
-          height: { ideal: 480 },
+          width: 640, // Lower resolution for performance
+          height: 480,
         },
         audio: false,
       });
