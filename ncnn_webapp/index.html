@@ -68,7 +68,6 @@
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             ></path>
           </svg>
-          <span data-i18n="status.loading">Loading AI Model...</span>
         </div>
       </div>
 
@@ -82,7 +81,7 @@
             </p>
           </div>
         </div>
-        <canvas id="canvas" width="640" height="480"></canvas>
+        <canvas id="canvas" width="320" height="320"></canvas>
         <video autoplay muted playsinline id="video"></video>
       </div>
     </main>
@@ -169,7 +168,7 @@
 
         wasmFeatureDetect.simd().then(function (simdSupported) {
           has_simd = simdSupported;
-
+          console.log("simd ", has_simd);
           wasmFeatureDetect.threads().then(function (threadsSupported) {
             has_threads = threadsSupported;
             yolo_module_name = "static/model/yolo";
@@ -217,8 +216,8 @@
           var video = document.getElementById("video");
           var canvas = document.getElementById("canvas");
           var ctx = canvas.getContext("2d");
-          var w = 640;
-          var h = 640;
+          var w = 320;
+          var h = 320;
           var constraints = { audio: false, video: { width: w, height: h } };
 
           navigator.mediaDevices
@@ -239,12 +238,6 @@
             "canplay",
             function () {
               if (!isStreaming) {
-                if (video.videoWidth > 0) {
-                  var videoAspect = video.videoWidth / video.videoHeight;
-                  var containerWidth = 640;
-                  w = containerWidth;
-                  h = containerWidth / videoAspect;
-                }
                 canvas.setAttribute("width", w);
                 canvas.setAttribute("height", h);
                 isStreaming = true;
@@ -264,7 +257,7 @@
             }
 
             function mallocAndCallSFilter() {
-              dst = _malloc(d.length);
+              dst = _malloc(320 * 320 * 4);
               console.log(`Allocated memory for image data: ${d.length} bytes`);
               resultarray = new Float32Array(6 * 20);
               resultbuffer = _malloc(6 * 20 * Float32Array.BYTES_PER_ELEMENT);
@@ -281,10 +274,8 @@
             if (video.paused || video.ended) return;
 
             ctx.fillRect(0, 0, w, h);
-
+            ctx.drawImage(video, 0, 0, w, h);
             ctx.save();
-            ctx.scale(-1, 1);
-            ctx.drawImage(video, -w, 0, w, h);
             ctx.restore();
 
             ncnn_yolo(ctx, canvas);
@@ -311,7 +302,7 @@
             canvas.height,
             CONF_THRESHOLD,
             resultbuffer,
-            640,
+            320,
           );
           console.log(
             "Result Buffer:",
