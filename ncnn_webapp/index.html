@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Detection</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body class="bg-gray-50 text-gray-800 min-h-screen i18n-loading">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-sm sticky top-0 z-50">
+      <div class="max-w-6xl mx-auto px-4 py-3">
+        <div class="brand-block flex items-center space-x-3">
+          <a
+            href="https://facemask-detection.com"
+            target="_parent"
+            rel="noopener noreferrer"
+          >
+          </a>
+          <div>
+            <h1 class="hero-title text-gray-900" data-i18n="hero.title">
+              WearMask: Real-time Face Mask Detection
+            </h1>
+            <p
+              class="text-xs sm:text-sm text-gray-500"
+              data-i18n="hero.subtitle"
+            >
+              Real-time face mask detection powered by WebAssembly and NCNN
+            </p>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto px-4 py-8">
+      <!-- Status Indicator -->
+      <div class="text-center mb-6 fade-in">
+        <div
+          id="remind"
+          class="status-pill inline-flex items-center space-x-2 bg-blue-100 text-blue-700"
+        >
+          <svg
+            class="animate-spin h-7 w-7 sm:h-8 sm:w-8"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          <span data-i18n="status.loading">Loading AI Model...</span>
+        </div>
+      </div>
+
+      <!-- Video Container -->
+      <div class="video-container mx-auto max-w-2xl mb-6">
+        <div id="loading-overlay" class="loading-overlay">
+          <div class="text-center text-white">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-sm font-medium" data-i18n="overlay.initializing">
+              Initializing AI model...
+            </p>
+          </div>
+        </div>
+        <canvas id="canvas" width="640" height="480"></canvas>
+        <video autoplay muted playsinline id="video"></video>
+      </div>
+    </main>
+
+    <!-- Camera Permission Error Modal -->
+    <div
+      id="camera-error-modal"
+      class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+    >
+      <div class="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
+        <div class="flex items-center mb-4">
+          <svg
+            class="w-6 h-6 text-red-500 mr-2"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            ></path>
+          </svg>
+          <h3 class="text-lg font-bold text-gray-900" data-i18n="modal.title">
+            Camera permission required
+          </h3>
+        </div>
+        <p class="text-gray-600 mb-4" data-i18n="modal.body">
+          To start mask detection, allow your browser to access the camera in
+          its settings, then refresh this page.
+        </p>
+        <button
+          onclick="location.reload()"
+          class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+          data-i18n="modal.button"
+        >
+          Refresh page
+        </button>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        ready(function () {
+          initializeDetection({});
+        });
+
+        function ready(fn) {
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", fn);
+          } else {
+            fn();
+          }
+        }
+      })();
+    </script>
+    <script src="static/js/vendor/wasmFeatureDetect.js?version=2.0.3"></script>
+    <script type="text/javascript">
+      function initializeDetection(translations) {
+        var Module = (window.Module = window.Module || {});
+
+        var has_simd;
+        var has_threads;
+
+        var wasmModuleLoaded = false;
+        var wasmModuleLoadedCallbacks = [];
+
+        var class_names = ["background"];
+
+        Module.onRuntimeInitialized = function () {
+          wasmModuleLoaded = true;
+          _yolo_init();
+          var loadingOverlay = document.getElementById("loading-overlay");
+          if (loadingOverlay) {
+            setTimeout(function () {
+              loadingOverlay.classList.add("hidden");
+            }, 300);
+          }
+          for (var i = 0; i < wasmModuleLoadedCallbacks.length; i++) {
+            wasmModuleLoadedCallbacks[i]();
+          }
+        };
+
+        wasmFeatureDetect.simd().then(function (simdSupported) {
+          has_simd = simdSupported;
+
+          wasmFeatureDetect.threads().then(function (threadsSupported) {
+            has_threads = threadsSupported;
+            yolo_module_name = "static/model/yolo";
+            console.log("load " + yolo_module_name);
+
+            var yolowasm = yolo_module_name + ".wasm";
+            var yolojs = yolo_module_name + ".js";
+
+            // Configure Module to locate files in the model directory
+            Module.locateFile =
+              Module.locateFile ||
+              function (path) {
+                // Extract directory from yolo_module_name (e.g., 'static/model/yolo' -> 'static/model/')
+                var modelDir = yolo_module_name.substring(
+                  0,
+                  yolo_module_name.lastIndexOf("/") + 1,
+                );
+                return modelDir + path;
+              };
+
+            fetch(yolowasm)
+              .then(function (response) {
+                return response.arrayBuffer();
+              })
+              .then(function (buffer) {
+                Module.wasmBinary = buffer;
+                var script = document.createElement("script");
+                script.src = yolojs;
+                script.onload = function () {};
+                document.body.appendChild(script);
+              });
+          });
+        });
+
+        var dst = null;
+        var resultarray = null;
+        var resultbuffer = null;
+
+        ready(function () {
+          initializeStream();
+        });
+
+        function initializeStream() {
+          var isStreaming = false;
+          var video = document.getElementById("video");
+          var canvas = document.getElementById("canvas");
+          var ctx = canvas.getContext("2d");
+          var w = 640;
+          var h = 640;
+          var constraints = { audio: false, video: { width: w, height: h } };
+
+          navigator.mediaDevices
+            .getUserMedia(constraints)
+            .then(function (mediaStream) {
+              video.srcObject = mediaStream;
+              video.onloadedmetadata = function () {
+                video.play();
+              };
+              toggleCameraModal(true);
+            })
+            .catch(function (err) {
+              console.log(err.message);
+              toggleCameraModal(false);
+            });
+
+          video.addEventListener(
+            "canplay",
+            function () {
+              if (!isStreaming) {
+                if (video.videoWidth > 0) {
+                  var videoAspect = video.videoWidth / video.videoHeight;
+                  var containerWidth = 640;
+                  w = containerWidth;
+                  h = containerWidth / videoAspect;
+                }
+                canvas.setAttribute("width", w);
+                canvas.setAttribute("height", h);
+                isStreaming = true;
+              }
+            },
+            false,
+          );
+
+          video.addEventListener("play", function () {
+            var id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            var d = id.data;
+
+            if (wasmModuleLoaded) {
+              mallocAndCallSFilter();
+            } else {
+              wasmModuleLoadedCallbacks.push(mallocAndCallSFilter);
+            }
+
+            function mallocAndCallSFilter() {
+              dst = _malloc(d.length);
+              console.log(`Allocated memory for image data: ${d.length} bytes`);
+              resultarray = new Float32Array(6 * 20);
+              resultbuffer = _malloc(6 * 20 * Float32Array.BYTES_PER_ELEMENT);
+              HEAPF32.set(
+                resultarray,
+                resultbuffer / Float32Array.BYTES_PER_ELEMENT,
+              );
+
+              sFilter();
+            }
+          });
+
+          function sFilter() {
+            if (video.paused || video.ended) return;
+
+            ctx.fillRect(0, 0, w, h);
+
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, -w, 0, w, h);
+            ctx.restore();
+
+            ncnn_yolo(ctx, canvas);
+            window.requestAnimationFrame(sFilter);
+          }
+        }
+
+        function ncnn_yolo(ctx, canvas) {
+          const CONF_THRESHOLD = 0.25; // minimum probability to show detection
+          // Get frame data
+
+          var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          console.log(`Image dimensions: ${canvas.width}x${canvas.height}`);
+          var data = imageData.data;
+          console.log("First 10 pixels of image data:", data.slice(0, 40)); // RGBA format: 4 bytes per pixel
+
+          // Copy to WASM memory
+          HEAPU8.set(data, dst);
+          console.log("Image data copied to WASM memory");
+          // Run YOLO network
+          _process_frame(
+            dst,
+            canvas.width,
+            canvas.height,
+            CONF_THRESHOLD,
+            resultbuffer,
+            640,
+          );
+          console.log(
+            "Result Buffer:",
+            new Float32Array(HEAPF32.buffer, resultbuffer, 6 * 20),
+          );
+          // Grab output
+          var qaqarray = HEAPF32.subarray(
+            resultbuffer / Float32Array.BYTES_PER_ELEMENT,
+            resultbuffer / Float32Array.BYTES_PER_ELEMENT + 6 * 20,
+          );
+
+          // Debug: print raw output
+          console.log("[YOLO JS] Raw network output:");
+          for (let i = 0; i < 6 * 20; i += 6) {
+            console.log(
+              `i=${i / 6} label=${qaqarray[i]} prob=${qaqarray[i + 1]} x=${qaqarray[i + 2]} y=${qaqarray[i + 3]} w=${qaqarray[i + 4]} h=${qaqarray[i + 5]}`,
+            );
+          }
+
+          for (var i = 0; i < 20; i++) {
+            var label = qaqarray[i * 6 + 0];
+            var prob = qaqarray[i * 6 + 1];
+            var bbox_x = qaqarray[i * 6 + 2];
+            var bbox_y = qaqarray[i * 6 + 3];
+            var bbox_w = qaqarray[i * 6 + 4];
+            var bbox_h = qaqarray[i * 6 + 5];
+
+            // Skip invalid or low-confidence detections
+            if (label < 0 || prob < CONF_THRESHOLD) {
+              console.debug(
+                `[YOLO JS] Skipping detection i=${i} label=${label} prob=${prob.toFixed(3)}`,
+              );
+              continue;
+            }
+
+            // Clamp probability
+            prob = Math.min(Math.max(prob, 0), 1);
+
+            // Define colors for mask/no-mask
+            var colorBase, colorBg;
+            if (label === 1) {
+              colorBase = "rgba(239, 68, 68, 1)";
+              colorBg = "rgba(239, 68, 68, 0.2)";
+            } else {
+              colorBase = "rgba(34, 197, 94, 1)";
+              colorBg = "rgba(34, 197, 94, 0.2)";
+            }
+
+            // Draw bounding box background
+            ctx.fillStyle = colorBg;
+            ctx.fillRect(bbox_x, bbox_y, bbox_w, bbox_h);
+
+            // Draw bounding box border
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = colorBase;
+            ctx.lineJoin = "round";
+            ctx.strokeRect(bbox_x, bbox_y, bbox_w, bbox_h);
+
+            // Draw label capsule
+            var text = class_names[label] + " " + Math.round(prob * 100) + "%";
+            ctx.font = "bold 16px Inter, sans-serif";
+            var textMetrics = ctx.measureText(text);
+            var textWidth = textMetrics.width;
+            var textHeight = 24;
+            var padding = 10;
+
+            var labelX = bbox_x;
+            var labelY = bbox_y - 30;
+            if (labelY < 0) labelY = bbox_y + 10;
+
+            ctx.fillStyle = colorBase;
+            ctx.beginPath();
+            ctx.roundRect(
+              labelX,
+              labelY,
+              textWidth + padding * 2,
+              textHeight + 6,
+              8,
+            );
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.textBaseline = "middle";
+            ctx.fillText(text, labelX + padding, labelY + (textHeight + 6) / 2);
+          }
+        }
+
+        function toggleCameraModal(success) {
+          var modal = document.getElementById("camera-error-modal");
+          if (!modal) return;
+          if (success) {
+            modal.classList.add("hidden");
+          } else {
+            modal.classList.remove("hidden");
+          }
+        }
+
+        function ready(fn) {
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", fn);
+          } else {
+            fn();
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
