@@ -1,0 +1,34 @@
+cmake_minimum_required(VERSION 3.10)
+project(ncnn-webassembly-yolov5)
+
+set(CMAKE_BUILD_TYPE Release)
+set(BUILD_SHARED_LIBS OFF)
+
+include_directories(${CMAKE_SOURCE_DIR}/include)
+
+# Path to your NCNN build
+set(ncnn_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ncnn/lib/cmake/ncnn")
+find_package(ncnn REQUIRED)
+
+# Emscripten compilation flags
+set(EM_FLAGS "-O3 -msimd128 -s WASM=1 -s FORCE_FILESYSTEM=1 -s INITIAL_MEMORY=256MB -s EXIT_RUNTIME=1")
+
+# For Debug
+# set(EM_FLAGS "-O0 -g -msimd128 -s WASM=1 -s FORCE_FILESYSTEM=1 -s INITIAL_MEMORY=256MB -s EXIT_RUNTIME=1 -s ASSERTIONS=1 -s SAFE_HEAP=1")
+
+# Export runtime methods (_malloc, _free, ccall, cwrap) and your function _yolo_ncnn
+set(EXPORTED_RUNTIME_METHODS "[\"_free\",\"ccall\",\"cwrap\"]")
+set(EXPORTED_FUNCTIONS "[\"_yolo_init\",\"_process_frame\",\"_malloc\"]")
+
+# Preload assets folder
+set(PRELOAD "--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets@assets")
+
+# Apply flags to C and C++ compilation and linking
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EM_FLAGS} -s EXPORTED_FUNCTIONS=${EXPORTED_FUNCTIONS} -s EXPORTED_RUNTIME_METHODS=${EXPORTED_RUNTIME_METHODS} -s EMBIND=1 ${PRELOAD}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EM_FLAGS} -s EXPORTED_FUNCTIONS=${EXPORTED_FUNCTIONS} -s EXPORTED_RUNTIME_METHODS=${EXPORTED_RUNTIME_METHODS} ${PRELOAD}")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EM_FLAGS} -s EXPORTED_FUNCTIONS=${EXPORTED_FUNCTIONS} -s EXPORTED_RUNTIME_METHODS=${EXPORTED_RUNTIME_METHODS} -s ALLOW_MEMORY_GROWTH=1 -s ENVIRONMENT=web -s USE_SDL=0 -s INITIAL_MEMORY=128MB ${PRELOAD} -lembind")
+
+# Build HTML + WASM
+add_executable(yolo src/main.cpp)
+
+target_link_libraries(yolo ncnn)
