@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/matt/projects/vicer/py/wasm_app/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
