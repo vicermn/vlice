@@ -1,85 +1,137 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="h-full">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>YOLOv8 + PaddleOCR - License Plate Reader</title>
+    <title>AI License Plate Reader</title>
 
-    <!-- Tailwind CSS CDN -->
+    <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Google Fonts -->
+    <!-- Inter Font -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
 
     <script src="src/main.js" type="module"></script>
+
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+    </style>
   </head>
-  <body
-    class="bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 font-sans text-gray-800"
-  >
-    <!-- Main Container -->
-    <div class="container mx-auto p-6 sm:p-8 md:p-10 space-y-8">
-      <!-- Header Section -->
-      <div class="text-center">
-        <h1
-          class="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500"
-        >
-          YOLOv8 License Plate Reader
-        </h1>
-        <p class="mt-2 text-lg sm:text-xl text-gray-700">
-          Using YOLOv8 and PaddleOCR
-        </p>
-      </div>
 
-      <!-- CSV Upload -->
+  <body class="h-full bg-slate-950 text-slate-100 antialiased">
+    <!-- Background Glow -->
+    <div class="absolute inset-0 -z-10 overflow-hidden">
       <div
-        class="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 max-w-md mx-auto"
-      >
-        <h2 class="text-2xl font-semibold text-green-500">Upload CSV</h2>
-        <input
-          type="file"
-          id="csvUpload"
-          accept=".csv"
-          class="mt-6 w-full px-6 py-3 border-2 border-green-500 rounded-md cursor-pointer hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-300"
-        />
-        <p class="mt-2 text-sm text-gray-500">
-          Upload a CSV file (First column will be extracted)
-        </p>
-      </div>
-
-      <!-- Webcam & Canvas Section -->
-      <div class="flex flex-col items-center mt-8">
-        <video
-          id="video"
-          class="w-full sm:w-[500px] max-w-full rounded-xl shadow-lg transition-all duration-300 hover:shadow-2xl"
-          autoplay
-          muted
-          playsinline
-        ></video>
-        <canvas
-          id="canvas"
-          class="absolute w-full sm:w-[500px] max-w-full border-4 border-gray-200 rounded-xl pointer-events-none"
-          width="640"
-          height="480"
-        ></canvas>
-      </div>
-
-      <!-- License Plates List Section -->
-      <div class="mt-8">
-        <h2 class="text-2xl font-semibold text-gray-800">
-          Detected License Plates
-        </h2>
-        <ul id="plateList" class="mt-4 space-y-3">
-          <!-- License Plate items will be added here dynamically -->
-        </ul>
-      </div>
+        class="absolute top-[-20%] left-[10%] w-[600px] h-[600px] bg-indigo-600/30 rounded-full blur-[120px]"
+      ></div>
+      <div
+        class="absolute bottom-[-20%] right-[10%] w-[600px] h-[600px] bg-cyan-500/20 rounded-full blur-[120px]"
+      ></div>
     </div>
 
-    <!-- Footer -->
-    <footer class="text-center mt-12 text-sm text-gray-600">
-      <p>Built with education in mind | License Plate Detection</p>
-    </footer>
+    <div class="min-h-full px-6 py-10 lg:px-16">
+      <!-- Header -->
+      <header class="max-w-7xl mx-auto mb-12">
+        <div
+          class="flex flex-col md:flex-row md:items-center md:justify-between gap-6"
+        >
+          <div>
+            <h1
+              class="text-4xl md:text-5xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent"
+            >
+              AI License Plate Reader
+            </h1>
+            <p class="mt-3 text-slate-400 text-lg">
+              Real-time detection powered by YOLOv8 & PaddleOCR
+            </p>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <span
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 text-emerald-400 text-sm font-medium border border-emerald-500/20"
+            >
+              <span
+                class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"
+              ></span>
+              Live Detection
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Dashboard Grid -->
+      <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Camera Section -->
+        <section class="lg:col-span-2">
+          <div
+            class="relative rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden"
+          >
+            <!-- Camera Header -->
+            <div
+              class="px-6 py-4 border-b border-white/10 flex items-center justify-between"
+            >
+              <h2 class="text-lg font-semibold text-slate-200">
+                Live Camera Feed
+              </h2>
+              <span class="text-xs text-slate-400">320x320</span>
+            </div>
+
+            <!-- Video Container -->
+            <div class="relative aspect-square max-h-[600px] mx-auto">
+              <video
+                id="video"
+                class="w-full h-full object-cover"
+                autoplay
+                muted
+                playsinline
+              ></video>
+
+              <canvas
+                id="canvas"
+                class="absolute top-0 left-0 w-full h-full pointer-events-none"
+                width="320"
+                height="320"
+              ></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- Detection Panel -->
+        <section>
+          <div
+            class="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl p-6 h-full flex flex-col"
+          >
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-lg font-semibold text-slate-200">
+                Detected Plates
+              </h2>
+              <span class="text-xs text-slate-400">Real-time OCR</span>
+            </div>
+
+            <ul id="plateList" class="space-y-4 overflow-y-auto pr-2 flex-1">
+              <!-- Dynamic plates injected here -->
+            </ul>
+
+            <!-- Empty State -->
+            <div
+              id="emptyState"
+              class="text-center text-slate-500 text-sm mt-6"
+            >
+              Waiting for detection...
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Footer -->
+      <footer class="mt-16 text-center text-slate-500 text-sm">
+        <p>Built for education • YOLOv8 + PaddleOCR</p>
+      </footer>
+    </div>
   </body>
 </html>
