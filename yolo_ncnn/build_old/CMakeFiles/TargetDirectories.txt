@@ -1,0 +1,3 @@
+/home/matt/projects/vicer/py/wasm_app/build/CMakeFiles/yolo.dir
+/home/matt/projects/vicer/py/wasm_app/build/CMakeFiles/edit_cache.dir
+/home/matt/projects/vicer/py/wasm_app/build/CMakeFiles/rebuild_cache.dir

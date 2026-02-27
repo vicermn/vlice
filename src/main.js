@@ -1,5 +1,3 @@
-import { preprocessPlate, recognizePlate } from "./ocr.js";
-
 (function () {
   document.addEventListener("DOMContentLoaded", initializeDetection);
   let plates = new Set();
@@ -9,6 +7,10 @@ import { preprocessPlate, recognizePlate } from "./ocr.js";
   let wasmModuleLoaded = false;
   let isStreaming = false;
   let ocrSession = null;
+  const FLOATS_PER_DETECTION = 5;
+  const MAX_DETECTIONS = 20;
+  const MAX_PLATE_LEN = 8;
+  const PLATE_SLOT_SIZE = MAX_PLATE_LEN + 1;
   function initializeDetection() {
     const audioContext = new (
       window.AudioContext || window.webkitAudioContext
@@ -17,11 +19,8 @@ import { preprocessPlate, recognizePlate } from "./ocr.js";
     // Handle WASM module initialization
     Module.onRuntimeInitialized = async function () {
       wasmModuleLoaded = true;
-      _yolo_init();
+      _models_init();
       initializeStream(); // Directly initialize the stream once WASM is ready
-      ocrSession = await ort.InferenceSession.create("static/model/cct.onnx", {
-        executionProviders: ["wasm"],
-      });
     };
 
     // Detect SIMD and threads support
@@ -75,7 +74,9 @@ import { preprocessPlate, recognizePlate } from "./ocr.js";
     // Initialize camera stream
     let dst = null,
       resultarray = null,
-      resultbuffer = null;
+      resultbuffer = null,
+      plateArray = null,
+      platebuffer;
 
     function initializeStream() {
       const video = document.getElementById("video");
@@ -88,12 +89,8 @@ import { preprocessPlate, recognizePlate } from "./ocr.js";
         .then((mediaStream) => {
           video.srcObject = mediaStream;
           video.onloadedmetadata = () => video.play();
-          toggleCameraModal(true);
         })
-        .catch((err) => {
-          console.log(err.message);
-          toggleCameraModal(false);
-        });
+        .catch((err) => {});
 
       video.addEventListener("canplay", () => {
         if (!isStreaming) {
@@ -114,10 +111,18 @@ import { preprocessPlate, recognizePlate } from "./ocr.js";
     // Allocate memory only once during initialization
     function mallocAndCallSFilter() {
       dst = _malloc(320 * 320 * 4); // Allocate memory for image buffer
-      resultarray = new Float32Array(6 * 20); // Initialize result array for detections
-      resultbuffer = _malloc(6 * 20 * Float32Array.BYTES_PER_ELEMENT); // Allocate memory for result buffer
-
+      resultarray = new Float32Array(FLOATS_PER_DETECTION * MAX_DETECTIONS);
+      resultbuffer = _malloc(resultarray.byteLength);
       HEAPF32.set(resultarray, resultbuffer / Float32Array.BYTES_PER_ELEMENT);
+      // -------------------------
+      // Plate buffer (chars)
+      // -------------------------
+
+      plateArray = new Uint8Array(MAX_DETECTIONS * PLATE_SLOT_SIZE);
+      platebuffer = _malloc(plateArray.byteLength);
+
+      HEAPU8.set(plateArray, platebuffer);
+
       sFilter();
     }
 
@@ -155,87 +160,72 @@ import { preprocessPlate, recognizePlate } from "./ocr.js";
         canvas.height,
         CONF_THRESHOLD,
         resultbuffer,
+        platebuffer,
       );
 
       const qaqarray = HEAPF32.subarray(
         resultbuffer / Float32Array.BYTES_PER_ELEMENT,
-        resultbuffer / Float32Array.BYTES_PER_ELEMENT + 6 * 20,
+        resultbuffer / Float32Array.BYTES_PER_ELEMENT + 5 * 20,
+      );
+
+      const plateHeap = HEAPU8.subarray(
+        platebuffer,
+        platebuffer + MAX_DETECTIONS * PLATE_SLOT_SIZE,
       );
 
       const plateList = document.getElementById("plateList");
       plateList.innerHTML = "";
 
       // Draw bounding boxes for detected objects
-      for (let i = 0; i < 20; i++) {
-        const [label, prob, bbox_x, bbox_y, bbox_w, bbox_h] = qaqarray.slice(
-          i * 6,
-          i * 6 + 6,
-        );
+      for (let i = 0; i < MAX_DETECTIONS; i++) {
+        const base = i * 5;
+        const conf = qaqarray[base + 0];
+        const bbox_x = qaqarray[base + 1];
+        const bbox_y = qaqarray[base + 2];
+        const bbox_w = qaqarray[base + 3];
+        const bbox_h = qaqarray[base + 4];
 
-        if (label < 0 || prob < CONF_THRESHOLD) continue;
-
-        // Determine the color of the bounding box based on label and confidence
+        if (conf === 0) continue;
         let colorBase;
-        if (prob >= 0.6) {
-          colorBase = "rgba(34, 197, 94, 1)"; // Green for prob >= 60%
-        } else if (prob >= 0.4) {
-          colorBase = "rgba(255, 165, 0, 1)"; // Orange for 40% <= prob < 60%
-        } else {
-          colorBase = "rgba(239, 68, 68, 1)"; // Red for prob < 40%
-        }
 
-        // Draw only the border with the color based on the confidence
+        if (conf >= 0.6) {
+          colorBase = "rgba(34, 197, 94, 1)"; // Green
+        } else if (conf >= 0.4) {
+          colorBase = "rgba(255, 165, 0, 1)"; // Orange
+        } else {
+          colorBase = "rgba(239, 68, 68, 1)"; // Red
+        }
+        const plateBase = i * PLATE_SLOT_SIZE;
+        const plateBytes = HEAPU8.subarray(
+          platebuffer + plateBase,
+          platebuffer + plateBase + PLATE_SLOT_SIZE,
+        );
+        // Draw bounding box
         ctx.lineWidth = 4;
         ctx.strokeStyle = colorBase;
         ctx.strokeRect(bbox_x, bbox_y, bbox_w, bbox_h);
-
-        // If the object is a license plate (assuming label for plates is a specific value, e.g., '2')
-        if (prob >= CONF_THRESHOLD) {
-          // Preprocess the plate region and recognize the plate
-          let plateCanvas = preprocessPlate(
-            canvas,
-            bbox_x,
-            bbox_y,
-            bbox_x + bbox_w,
-            bbox_y + bbox_h,
+        const plateText = new TextDecoder()
+          .decode(plateBytes)
+          .replace(/\0.*$/, "");
+        if (plateText && plates.has(plateText)) {
+          const listItem = document.createElement("li");
+          listItem.textContent = plateText;
+          listItem.classList.add(
+            "text-lg",
+            "font-semibold",
+            "text-red-600",
+            "bg-white",
+            "p-2",
+            "rounded-md",
+            "shadow-md",
+            "hover:bg-red-50",
           );
 
-          // Wait for the plate text to be recognized
-          const plateText = await recognizePlate(plateCanvas, ocrSession);
+          plateList.appendChild(listItem);
 
-          // Release the canvas reference
-          plateCanvas.width = 0;
-          plateCanvas.height = 0;
-          plateCanvas = null;
-
-          // If the plate text is valid and hasn't been processed before, display it
-          if (plates.has(plateText)) {
-            const listItem = document.createElement("li");
-            listItem.textContent = plateText;
-            listItem.classList.add(
-              "text-lg",
-              "font-semibold",
-              "text-red-600",
-              "bg-white",
-              "p-2",
-              "rounded-md",
-              "shadow-md",
-              "hover:bg-red-50",
-            );
-            plateList.appendChild(listItem);
-
-            // Play a beep sound (assumed to be a function you have)
-            playBeep();
-          }
+          playBeep();
         }
       }
-    }
-
-    // Toggle camera error modal
-    function toggleCameraModal(success) {
-      const modal = document.getElementById("camera-error-modal");
-      if (!modal) return;
-      modal.classList.toggle("hidden", success);
     }
   }
   document.getElementById("csvUpload").addEventListener("change", async (e) => {

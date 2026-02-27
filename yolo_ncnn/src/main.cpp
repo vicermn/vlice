@@ -3,12 +3,20 @@
 #include <net.h>
 #include <vector>
 #include <iostream>
+#include <fstream>
 #include "stb_image.h"
 #include "stb_image_write.h"
 
-const int MAX_DETECTIONS = 6 * 20; 
-const size_t RESULT_BUFFER_SIZE = MAX_DETECTIONS * sizeof(float);
+constexpr int MAX_DETECTIONS = 20; 
+constexpr int FLOATS_PER_DETECTION = 5; 
+constexpr int  MAX_PLATE_LEN = 8;
+constexpr size_t PLATE_BUFFER_SIZE =
+    MAX_DETECTIONS * (MAX_PLATE_LEN + 1);
+const size_t RESULT_BUFFER_SIZE = MAX_DETECTIONS * FLOATS_PER_DETECTION * sizeof(float);
 const float NORM_VALUES[3] = {1.f / 255.f, 1.f / 255.f, 1.f / 255.f};
+
+const int TARGET_H = 48;
+
 struct RectF
 {
     float x, y, w, h;
@@ -120,45 +128,155 @@ ncnn::Mat mat_from_stb(unsigned char* img_data, int img_w, int img_h)
     return in;
 }
 
-ncnn::Net net;
+static std::vector<std::string> load_keys(const std::string& path)
+{
+    std::vector<std::string> keys;
+    keys.push_back("blank");  // CTC blank
 
-extern "C" {
-    void yolo_init() {
-        net.opt.lightmode = true;
-        net.opt.num_threads = 1;
-        if (net.load_param("assets/model.param") || net.load_model("assets/model.bin")) {
-            return;
+    std::ifstream infile(path);
+    std::string line;
+    while (std::getline(infile, line))
+    {
+        if (!line.empty())
+            keys.push_back(line);
+    }
+    return keys;
+}
+
+static std::string ctc_decode(const ncnn::Mat& out,
+                              const std::vector<std::string>& keys)
+{
+    std::string result;
+
+    int T = out.h;
+    int C = out.w;
+
+    const ncnn::Mat& mat = out.channel(0);  // VERY IMPORTANT
+
+    int last_index = 0;
+
+    for (int t = 0; t < T; t++)
+    {
+        const float* row = mat.row(t);
+
+        int max_index = 0;
+        float max_score = row[0];
+
+        for (int i = 1; i < C; i++)
+        {
+            if (row[i] > max_score)
+            {
+                max_score = row[i];
+                max_index = i;
+                std::cout << max_index << " ";
+            }
         }
+
+        if (max_index != 0 && max_index != last_index)
+        {
+            if (max_index < (int)keys.size())
+                result += keys[max_index];
+        }
+
+        last_index = max_index;
     }
 
-void process_frame(uint8_t* image_data, int orig_w, int orig_h, float conf_thresh, float* resultbuffer) {
+    return result;
+}
+const int MODEL_W = 320;
+const int MODEL_H = 320;
+ncnn::Net yolo_net;
+ncnn::Net paddle_net;
+std::vector<std::string> keys;
+extern "C" {
+    void models_init() {
+        yolo_net.opt.lightmode = true;
+        yolo_net.opt.num_threads = 1;
+        if (yolo_net.load_param("assets/yolo.param") || yolo_net.load_model("assets/yolo.bin")) {
+            return;
+        }
+        paddle_net.opt.lightmode = true;
+        paddle_net.opt.num_threads = 1;
+        if (paddle_net.load_param("assets/paddle.param") || paddle_net.load_model("assets/paddle.bin")) {
+            return;
+        }
+        keys = load_keys("assets/dict.txt");
+    }
+
+void process_frame(uint8_t* image_data, int orig_w, int orig_h, float conf_thresh, float* resultbuffer, char* platebuffer) {
     memset(resultbuffer, 0, RESULT_BUFFER_SIZE);
+    memset(platebuffer, 0, PLATE_BUFFER_SIZE);
     ncnn::Mat input = mat_from_stb(image_data, orig_w, orig_h);
     
-    ncnn::Extractor ex = net.create_extractor();
+    ncnn::Extractor ex = yolo_net.create_extractor();
     ex.set_light_mode(true);
     ex.input("images", input);
-    const unsigned char* img_ptr = input.channel(0);  
 
     ncnn::Mat out;
     ex.extract("output0", out);
     std::vector<Detection> detections;
     decode_yolov8(out, conf_thresh, detections);
     nms(detections, 0.45f); 
+    float sx = orig_w / (float)MODEL_W;
+    float sy = orig_h / (float)MODEL_H;
+    int count = 0;
     int index = 0;
     for (auto& d : detections) {
-        resultbuffer[index++] = d.class_id;
+        if (count >= MAX_DETECTIONS) break;
+        d.bbox.x *= sx;
+        d.bbox.y *= sy;
+        d.bbox.w *= sx;
+        d.bbox.h *= sy;
+
+        // Save cropped images (stb_image_write used for saving)
+        int x = (int)d.bbox.x;
+        int y = (int)d.bbox.y;
+        int w = (int)d.bbox.w;
+        int h = (int)d.bbox.h;
+
+        ncnn::Mat cropped = ncnn::Mat::from_pixels_roi(
+            image_data,
+            ncnn::Mat::PIXEL_RGBA2RGB,
+            orig_w,
+            orig_h,
+            x, y, w, h
+        );
+
+        ncnn::Mat resized;
+        
+        int target_w = std::min(int((float)w * TARGET_H / h), 160);
+        ncnn::resize_bilinear(cropped, resized, target_w, TARGET_H);
+
+        const float mean_vals[3] = {127.5f, 127.5f, 127.5f};
+        const float norm_vals[3] = {1.f / 127.5f, 1.f / 127.5f, 1.f / 127.5f};
+        resized.substract_mean_normalize(mean_vals, norm_vals);
+
+        // 4️⃣ Feed into OCR
+        ncnn::Extractor ocr_ex = paddle_net.create_extractor();
+        ocr_ex.input("in0", resized);
+
+        ncnn::Mat ocr_out;
+        ocr_ex.extract("out0", ocr_out);
+        std::string text = ctc_decode(ocr_out, keys);
+
         resultbuffer[index++] = d.confidence;
         resultbuffer[index++] = d.bbox.x;
         resultbuffer[index++] = d.bbox.y;
         resultbuffer[index++] = d.bbox.w;
         resultbuffer[index++] = d.bbox.h;
+
+        char* plate_slot = platebuffer + count * (MAX_PLATE_LEN + 1);
+
+        strncpy(plate_slot, text.c_str(), MAX_PLATE_LEN);
+        plate_slot[MAX_PLATE_LEN] = '\0';  // guarantee null termination
+
+        count++;
     }
 }
 }
 
 EMSCRIPTEN_BINDINGS(model) {
-    emscripten::function("yolo_init", & yolo_init);
+    emscripten::function("models_init", & models_init);
 }
 
 EMSCRIPTEN_BINDINGS(process) {

@@ -1,0 +1,1 @@
+-I/home/matt/projects/vicer/py/wasm_app/include -isystem /home/matt/projects/vicer/py/wasm_app/ncnn/include/ncnn

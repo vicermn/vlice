@@ -18,7 +18,7 @@ set(EM_FLAGS "-O3 -msimd128 -s WASM=1 -s FORCE_FILESYSTEM=1 -s INITIAL_MEMORY=25
 
 # Export runtime methods (_malloc, _free, ccall, cwrap) and your function _yolo_ncnn
 set(EXPORTED_RUNTIME_METHODS "[\"_free\",\"ccall\",\"cwrap\"]")
-set(EXPORTED_FUNCTIONS "[\"_yolo_init\",\"_process_frame\",\"_malloc\"]")
+set(EXPORTED_FUNCTIONS "[\"_models_init\",\"_process_frame\",\"_malloc\"]")
 
 # Preload assets folder
 set(PRELOAD "--preload-file ${CMAKE_CURRENT_SOURCE_DIR}/assets@assets")
