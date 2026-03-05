@@ -7,7 +7,6 @@ export function createDetector({ confidenceThreshold }) {
   let dst;
   let resultBuffer;
   let plateBuffer;
-  const detectedPlates = new Set();
   initMemory();
 
   function initMemory() {
@@ -50,6 +49,8 @@ export function createDetector({ confidenceThreshold }) {
       plateBuffer + MAX_DETECTIONS * PLATE_SLOT_SIZE,
     );
 
+    ctx.font = "16px Inter, Arial, sans-serif";
+    ctx.textBaseline = "middle";
     for (let i = 0; i < MAX_DETECTIONS; i++) {
       const base = i * 5;
       const conf = detections[base + 0];
@@ -58,40 +59,122 @@ export function createDetector({ confidenceThreshold }) {
       const w = detections[base + 3];
       const h = detections[base + 4];
 
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = getColor(conf);
-      ctx.strokeRect(x, y, w, h);
+      if (conf <= 0) continue;
 
       const rawPlate = decodePlate(plateHeap, i);
       if (!rawPlate) continue;
-      // Normalize:
-      // 1. Uppercase
-      // 2. Remove non-alphanumeric characters
-      // 3. Trim whitespace
+
       const normalizedPlate = rawPlate
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, "")
         .trim();
+
       if (normalizedPlate.length < 6) continue;
-      // ✅ Only show plates that exist in your CSV set
-      // ✅ Only append if it's new
-      if (!detectedPlates.has(normalizedPlate)) {
-        detectedPlates.add(normalizedPlate);
-        addPlateToList(normalizedPlate);
-      }
+
+      const color = getColor(conf);
+
+      drawModernBox(ctx, x, y, w, h, normalizedPlate, color);
     }
   }
 
-  function decodePlate(heap, index) {
-    const start = index * PLATE_SLOT_SIZE;
-    const bytes = heap.slice(start, start + PLATE_SLOT_SIZE);
-    return new TextDecoder().decode(bytes).replace(/\0.*$/, "");
+  function drawModernBox(ctx, x, y, w, h, text, color) {
+    const radius = 14;
+
+    // === BOX BACKGROUND (glass body) ===
+    ctx.save();
+
+    ctx.beginPath();
+    roundedRect(ctx, x, y, w, h, radius);
+
+    // Frosted glass fill (darkened for better contrast)
+    ctx.fillStyle = "rgba(0, 0, 0, 0.3)"; // Darker background for improved readability
+    ctx.fill();
+
+    // Soft gradient border
+    const gradient = ctx.createLinearGradient(x, y, x + w, y + h);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, "rgba(255,255,255,0.6)");
+
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = gradient;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 15;
+    ctx.stroke();
+
+    ctx.restore();
+
+    // === GLASS LABEL ===
+    drawGlassLabel(ctx, x, y, text, color);
+  }
+
+  function drawGlassLabel(ctx, x, y, text, color) {
+    const paddingX = 14;
+    const paddingY = 8;
+    const radius = 10;
+
+    ctx.font = "600 14px Inter, sans-serif";
+    const textWidth = ctx.measureText(text).width;
+
+    const labelWidth = textWidth + paddingX * 2;
+    const labelHeight = 30;
+
+    const labelX = x;
+    const labelY = y - labelHeight - 8;
+
+    ctx.save();
+
+    // Glass background (darkened for better contrast)
+    ctx.beginPath();
+    roundedRect(ctx, labelX, labelY, labelWidth, labelHeight, radius);
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)"; // Darker glass background
+    ctx.fill();
+
+    // Thin glossy border
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+    ctx.stroke();
+
+    // Soft glow
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+
+    // Text
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, labelX + paddingX, labelY + labelHeight / 2);
+
+    ctx.restore();
+  }
+
+  function roundedRect(ctx, x, y, w, h, r) {
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
   }
 
   function getColor(conf) {
     if (conf >= 0.6) return "rgba(34,197,94,1)";
     if (conf >= 0.4) return "rgba(255,165,0,1)";
     return "rgba(239,68,68,1)";
+  }
+
+  function getColor(conf) {
+    if (conf >= 0.6) return "rgba(34,197,94,1)";
+    if (conf >= 0.4) return "rgba(255,165,0,1)";
+    return "rgba(239,68,68,1)";
+  }
+
+  function decodePlate(heap, index) {
+    const start = index * PLATE_SLOT_SIZE;
+    const bytes = heap.slice(start, start + PLATE_SLOT_SIZE);
+    return new TextDecoder().decode(bytes).replace(/\0.*$/, "");
   }
 
   function addPlateToList(text) {
